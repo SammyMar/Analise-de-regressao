@@ -92,15 +92,33 @@ define_keywords(title.dfSummary = "Informações a Respeito dos Dados",dimension
                 graph= 'Gráficos',missing= 'Faltantes',distinct.value = 'Valores Distintos',distinct.values = 'Valores Distintos')
 dfSummary(df)
 ```
-Podemos ver abaixo a interação, através da análise de correlação, de cada variável explicativa com a variável reposta, note porém que aqui não será considerada a variável `Outcome` por se tratar de uma variável categórica. 
+
+Podemos ver abaixo a interação, através da análise de correlação, de cada variável explicativa com a variável reposta, note porém que aqui não será considerada a variável `Outcome` por se tratar de uma variável categórica. Alguma das variáveis nâo apresentam correlação em virtude da alta quantidade de valores ausentes, fator esse que impossibilita o cálculo, como solução, veja os dois gráficos, a correlação do banco de dados e a correlação retirando as observações faltantes para as variáveis que não apresentaram correlação na primeira visualização.
 
 ```{r}
 library(corrplot)
 # Calcular a matriz de correlação
-matriz_cor <- cor(df %>% select(-Outcome))
+df_cor <- df %>% select(-Outcome) %>% 
+                    rename(Y = Glucose,
+                           X1 = Pregnancies,
+                           X2 = BloodPressure,
+                           X3 = SkinThickness,
+                           X4 = Insulin,
+                           X5 = BMI,
+                           X6 = DiabetesPedigree,
+                           X7 = Age 
+                    )
+matriz_cor <- cor(df_cor)
+colunas <- c('X2','X3','X4','X5')
+# Remover as observações com dados faltantes nas colunas sinalizadas
+df_filtered <- df_cor[complete.cases(df_cor[, colunas]), ]
 
-# Plotar um gráfico de correlação
-corrplot(matriz_cor, method = "circle", type = "upper", tl.col = "black", tl.srt = 45)
+matriz_cor_filtered <- cor(df_filtered)
+par(mfrow = c(1, 2))
+# Plotar os gráficos de correlação
+corrplot(matriz_cor, method = 'color', type = "upper", tl.col = "black", tl.srt = 45, title = 'Banco Completo')
+corrplot(matriz_cor_filtered, method = 'color', type = "upper", tl.col = "black", tl.srt = 45, title = 'Banco Filtrado')
+
 ```
 
 # Modelagem
