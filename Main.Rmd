@@ -1,0 +1,279 @@
+---
+title: "Análise De regressão para o conjunto de dados AUTO"
+author: "Samuel Martins de Medeiros"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+## REQUIRING PACKAGES ##
+
+library(ISLR)		# for Auto dataset
+library(MASS)		# stepwise (aic)
+library(mixlm)		# stepwise (valor-p)
+library(glmulti)	# all regession
+library(tidyverse)	# manipulacao de dados
+library(GGally)
+
+
+## DATA ##
+
+df <- Auto
+
+
+```
+
+## Introdução.
+
+A análise de regressão múltipla é uma técnica estatística amplamente utilizada em diversas áreas, desde a economia até a biologia, para estudar a relação entre uma variável dependente e várias variáveis independentes. Neste trabalho, será aplicado a análise de regressão múltipla ao conjunto de dados "Auto" do pacote ISLR no R para investigar a relação entre a variável MPG (milhas por galão) e outras variáveis independentes, como a potência do motor, peso e aceleração.
+
+Seguindo então para a análise exploratória do conjunto, será realizado uma análise descritiva dos dados juntamente a *plots* gráficos de dispersão para verificar a relação entre MPG e as variáveis independentes, bem como distribuição ou possíveis *outliers*. Também será se há valores ausentes no conjunto de dados.
+
+Na seção de ajuste de modelo, a regressão múltipla com a variável MPG e as demais como variáveis independentes, bem como a seleção do subconjunto do total de variáveis que retorna o modelo mais parcimonioso. Avaliando, em seguida, a qualidade do ajuste do modelo usando medidas como p-valor e AIC.
+
+## Análise Exploratória.
+
+A análise exploratória é considerada uma parte fundamental de qualquer tipo de análise dentro do âmbito da estatística e análise de dados. A identificação de padrões ou possíveis inconsistências pode ser vista durante a análise, bem como possíveis distribuições para os dados ou até mesmo erros que possam surgir durante as outras etapas da modelagem.
+
+A primeira etapa pode ser considerada como a identificação da estrutura dos dados, bem como a presença de observações faltantes dentro do conjunto. Para o conjunto de dados "Auto", não foram identificados dados faltantes. É possível verificar a disposição dos dados por meio da Tabela 1, que apresenta as 10 primeiras observações como exemplo.
+
+```{r echo=FALSE}
+#ESTRUTURA DOS DADOS
+#str(df)
+head(df) %>% knitr::kable(caption = "Conjunto de dados Auto")
+
+#EXCLUSAO VARIAVEL NOME, IRRELEVANTE PARA O MODELO
+# df$name %>% unique() %>% length()
+# df %>% nrow()
+df <- df %>% select(-name)
+
+#VARIAVEL ORIGIN COMO FATOR/GRUPO, E NAO NUMERICO
+# ?Auto
+df$origin <- df$origin %>% as.factor()
+
+#VERIFICACAO DE VALORES FALTANTES
+# sum(is.na(df))
+
+#SUMARIO
+# summary(Auto)
+```
+
+É apresentado na estrutura um conjunto de 7 variáveis numéricas (mpg, cylinders, displacement, horsepower, weight, acceleration, year) e 2 variáveis do tipo fator (name, origin). A variável 'name', por apresentar um total de 304 valores únicos, sendo o conjunto de dados formado por 392 observações, será desconsiderada na análise. As variáveis seguem sendo:
+
+|     Variável |                                               Descrição |
+|-------------:|--------------------------------------------------------:|
+|          mpg |                                       Milhas por Galão. |
+|    cylinders |                       Número de cilindros, entre 4 e 8. |
+| displacement |                                  Deslocamento do motor. |
+|   horsepower |                                      Potência do motor. |
+|       weight |                                        Peso do veículo. |
+| acceleration |             Tempo de aceleração de 0 a 60mph(Segundos). |
+|         year |                                          Ano do modelo. |
+|       origin | Origem do carro (1. Americano, 2. Europeu, 3. Japônes). |
+
+: Variáveis e descrição
+
+É possível identificar pelos gráficos de dispersão a presença de uma relação entre as variáveis explicativas e a variável dependente, note que até mesmo para variáveis inteiras ou fator, essa relação ainda existe, sendo mais acentuada para as variáveis *horsepower* e *weigth*, enquanto que na variável *acceleration* podemos identificar uma dispersão mais concisa para valores baixos que se dispersam mais conforme o valor de acceleration é aumentado. É possível ver, também, o tipo de relação, positiva para as variáveis *acceleration*, *year* e *origin*, e uma relação negativa para as demais.
+
+```{r echo=FALSE, fig.cap="Gráficos de dispersão das covariáveis em relação a variável resposta", message=FALSE, warning=FALSE}
+#GRAFICOS EM RELACAO A VARIAVEL MPG
+g1 <- df %>% ggplot(aes(x=cylinders,y=mpg)) +
+  geom_point() +
+  theme_bw()
+
+g2 <- df %>% ggplot(aes(x=displacement,y=mpg)) +
+  geom_point() +
+  theme_bw()
+
+g3 <- df %>% ggplot(aes(x=horsepower,y=mpg)) +
+  geom_point() +
+  theme_bw()
+
+g4 <- df %>% ggplot(aes(x=weight,y=mpg)) +
+  geom_point() +
+  theme_bw()
+g5 <- df %>% ggplot(aes(x=acceleration ,y=mpg)) +
+  geom_point() +
+  theme_bw()
+
+g6 <- df %>% ggplot(aes(x=year,y=mpg)) +
+  geom_point() +
+  theme_bw()
+
+g7 <- df %>% ggplot(aes(x=origin,y=mpg)) +
+  geom_point() +
+  theme_bw()
+t2 <- ggpubr::ggarrange(g1,g2,g3,g4,g5,g6,g7) 
+invisible(ggtitle("Título do gráfico"))
+cowplot::ggdraw(t2)
+```
+
+Esse fator da relação, positiva ou negativa, ou ainda a itensidade dessa relação pode ser identificada pela análise da correlação entre as variáveis, como pode ser visto as hipóteses antes citadas a partir dos gráficos seguem sendo verdadeiras pela análise da correlação das variáveis numéricas do conjunto de dados.
+
+```{r echo=FALSE}
+# CORRELACAO
+
+cor(df %>% select(-origin)) %>% round(2) %>% 
+  as.data.frame() %>% 
+  knitr::kable(caption = 'Correlação entre as variáveis')
+
+```
+
+Perceba que a correlação entre as variáveis explicativas e a variável resposta varia entre moderada e forte, percebe-se também uma correlação forte entre algumas covariáveis, o que pode vir a gerar problemas de multicolinariedade no futuro, essas afirmações serão testadas na modelagem dos dados.
+
+Por fim, retornando ao fato que a variável *origin* é do tipo fator, podemos identificar a distribuição dos dados agrupados pela mesma visualizada pelos bloxplots como segue.
+
+```{r echo=FALSE, fig.cap="BoxPlots separados por origem do carro", message=FALSE, warning=FALSE}
+#BOXPLOTS DAS VARIAVEIS NUMERICAS CONTINUAS DO BANCO DE DADOS POR ORIGEM DO VEICULO
+
+b1 <- ggplot(df) +
+ aes(x = "", y = mpg, fill = origin) +
+ geom_boxplot() +
+ scale_fill_viridis_d(option = "magma", 
+ direction = 1) +
+ theme_minimal()+
+  theme(legend.position = "none")
+
+b3 <- ggplot(df) +
+  aes(x = "", y = displacement, fill = origin) +
+  geom_boxplot() +
+  scale_fill_viridis_d(option = "magma", 
+                       direction = 1) +
+  theme_minimal()+
+  theme(legend.position = "none")
+b4 <- ggplot(df) +
+  aes(x = "", y = horsepower, fill = origin) +
+  geom_boxplot() +
+  scale_fill_viridis_d(option = "magma", 
+                       direction = 1) +
+  theme_minimal()
+b5 <- ggplot(df) +
+  aes(x = "", y = weight      , fill = origin) +
+  geom_boxplot() +
+  scale_fill_viridis_d(option = "magma", 
+                       direction = 1) +
+  theme_minimal()+
+  theme(legend.position = "none")
+b6 <- ggplot(df) +
+  aes(x = "", y = year  , fill = origin) +
+  geom_boxplot() +
+  scale_fill_viridis_d(option = "magma", 
+                       direction = 1) +
+  theme_minimal()+
+  theme(legend.position = "none")
+b7 <- ggplot(df) +
+  aes(x = "", y = acceleration      , fill = origin) +
+  geom_boxplot() +
+  scale_fill_viridis_d(option = "magma", 
+                       direction = 1) +
+  theme_minimal()
+t1 <- ggpubr::ggarrange(b1,b3,b4,b5,b6,b7)
+invisible(ggtitle("Título do gráfico"))
+
+cowplot::ggdraw(t1)
+```
+
+Perceba que a variável parece influenciar sim as outras, ou seja, diferentes resultados dependendo da origem do carro. Note pore xemplo as variáveis *displacement* e *horsepower*, para carros de origem americana temos uma grande dispersão dos dados enquanto que para as demais origens, dados com uma menor variabilidade, esse fator também segue para a variável *weight*. Para variáveis como *mpg* e *accelaration* notamos uma diferença de valores médios para cada um dos grupos, porém uma variábilidade não tão discrepante como para as outras variáveis.
+
+## Modelagem
+
+A etapa de modelagem da análise de regressão tem como objetivo construir um modelo estatístico que explique a relação entre as variáveis dependentes e independentes. No caso dos dados Auto, o objetivo é construir um modelo que explique a relação entre a variável MPG (milhas por galão) e as variáveis independentes (ou preditoras) que possam influenciar seu valor.
+
+Considerando as variáveis descritas, de forma incial realizaremos uma seleção das variáveis que irão no modelo, utilizando o método backward e forward stepwise para seleção de variáveis. De forma incial será treinado um modelo formado pelas variáveis e suas possíveis interações, usando a partir deste modelo a técnica backward, usando como medida o AIC e p-valor. Obttemos as variáveis preditoras: Cylinders, displacement, horsepower, weight, accelaration, year, origin e as interações cylinder-acceleration, displacement-weight, displacement-origin, horsepower-year, weight-origin, acceleration-year e acceleration-origin, apresentando um R-ajustado de 0,8873. Note porém que ainda sim o modelo não parece seguir o princípio da parcimonia.
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+modelo1 <- lm(mpg~ (cylinders + displacement + horsepower + weight + acceleration + year +  origin )^2     ,df)
+opt_model_backw_aic<- stepAIC(modelo1,direction="backward") # método passo atrás
+# opt_model_backw_aic %>% summary()
+opt_model_backw_p<- backward(modelo1,alpha=0.1) # método passo atrás
+opt_model_backw_p %>% summary()
+
+opt_model_forw_p<- forward(modelo1,alpha=0.1) # método passo a frente
+opt_model_forw_p %>% summary()
+opt_model_forw_aic<- stepAIC(modelo1,direction="forward") # método passo atrás
+opt_model_forw_aic %>% summary()
+str(df)
+```
+
+Usando o método forward pelas métricas aplicadas ao backward selection, obtemos as mesmas variáveis independentes do método anterior. A partir desse modelo, usando o nível de significância das variáveis, reduzimos ao modelo:
+
+$$
+ Y = \beta_0 + \beta_1 X_1 + \beta_2 X_2+ \beta_3 X_3+ \beta_4 X_4+ \beta_5 X_5 + \beta_6 X_6+ \beta_7 X_7+ \beta_8 X_8+ \beta_{9} X_{9}+ \beta_{10} X_{10}+ \beta_{11} X_{11}+ \beta_{12} X_{12}+ \beta_{13} X_{13} + \epsilon            
+$$ Onde temos respectivamente:
+
+-   $Y$ Mpg;
+
+-   $X_1$ cylinders;
+
+-   $X_1$ displacement;
+
+-   $X_1$ horsepower;
+
+-   $X_1$ weight;
+
+-   $X_1$ acceleration;
+
+-   $X_1$ origin (1) ;
+
+-   $X_1$ origin (2);
+
+-   $X_1$ cylinders:acceleration;
+
+-   $X_1$ displacement:weight;
+
+-   $X_1$ horsepower:year;
+
+-   $X_1$ acceleration:year;
+
+-   $X_1$ acceleration:origin(1);
+
+-   $X_1$ acceleration:origin(2).
+
+A partir disso, iremos comparar esse modelo com um modelo mais simples, sem interações e aplicado ao método forward selection, com isso obtemos as variáveis independetes: weight, year, origin, displacement e horsepower. Usando método anova para comparação dos modelos, obtemos uma estatistica F de 31.023 , a 7 graus de liberdade, rejeitamos a hipótese de acrescimo das variáveis com interações. Ficamos com o modelo final de:
+
+```{r include=FALSE}
+modelo2 <- lm((mpg)~displacement +cylinders+ horsepower+ weight +acceleration +origin+ cylinders:acceleration+ displacement:weight+
+              horsepower:year+ acceleration:year+ acceleration:origin,df)
+modelo2 %>% plot()
+modelo_aux <- lm(mpg~.,df)
+opt_model_forw_p<- forward(modelo_aux,alpha=0.1)
+modelo_teste <- lm((mpg)~weight+year+origin+displacement +horsepower,df)
+modelo_teste %>% plot()
+opt_model_forw_p %>% summary()
+anova(modelo_teste,modelo2)
+modelo_teste %>% summary()
+```
+
+$$
+mpg = \beta_0 + \beta_1 weight + \beta_2 year + \beta_3 origin_1 +  \beta_4 origin_2 + \beta_5 displacement + \beta_6 horsepower + \epsilon
+$$ 
+
+Com um R-Ajustado de 0.8796, um valor ligeiramente inferior ao modelo anterior porém com número consideravelmente inferior de covariáveis, obedecendo o principio da parcimonia então, ficaremos com o último modelo. Observe abaixo o sumário do modelo em questão.
+
+```{r echo=FALSE}
+modelo_teste %>% summary()
+```
+
+Se verificarmos os plots do modelo, vemos que a hipótese de normalidade dos resíduos não esta completamente sendo seguida.
+
+```{r echo=FALSE}
+par(mfrow = c(2,2))
+plot(modelo_teste)
+```
+
+
+Vemos então, que ao aplicar o logaritmo na variável resposta, vemos uma considerável melhora no ajuste do modelo, segue então o diagnóstico do modelo final:
+
+```{r echo=FALSE}
+modelo_final <- lm(log(mpg)~weight+year+origin+displacement +horsepower,df)
+par(mfrow = c(2,2))
+plot(modelo_final)
+```
+Obtendo então o sumario como:
+
+```{r echo=FALSE}
+summary(modelo_final)
+```
+
+Verificando assim então, a relação positiva entre year, displacement e origen 1 para a variável resposta e uma relação negativa com as demais.

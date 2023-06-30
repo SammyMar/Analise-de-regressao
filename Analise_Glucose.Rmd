@@ -1,0 +1,117 @@
+---
+title: "Análise de Regressão para dados de Glucose"
+author: 'Samuel Medeiros'
+output:
+  pdf_document:
+    highlight: tango
+    latex_engine: xelatex
+    includes:
+      in_header:
+      - !expr system.file("includes/fig-valign.tex",package = "summarytools")
+papersize: letter
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introdução
+
+Este relatório apresenta uma análise de regressão realizada com base em um conjunto de dados coletados. O objetivo principal desta análise é investigar as relações entre uma variável de resposta e várias variáveis independentes, a fim de desenvolver um modelo de regressão que possa prever o valor da variável de resposta com base nas demais variáveis.
+
+Ao longo deste relatório, serão apresentados os resultados da análise de regressão, incluindo as estatísticas dos coeficientes do modelo, a significância estatística das relações e a avaliação da qualidade de ajuste do modelo. Além disso, serão discutidas as principais conclusões obtidas a partir da análise.
+
+Os dados utilizados neste estudo consistem em casos de diabetes, contendo informações de pacientes, como o número de gestações, nível de glicose, pressão arterial, espessura da pele, insulina, índice de massa corporal (IMC), função de pedigree de diabetes, idade e resultado (1 para positivo e 0 para negativo).
+
+# Análise descritiva
+
+```{r include=FALSE}
+library(readr)
+library(dplyr)
+library(kableExtra)
+df <- read_csv("glicose.csv")
+df %>% str()
+df <- df %>% 
+  mutate(
+    Glucose = ifelse(Glucose == 0,NA,Glucose),
+    BloodPressure = ifelse(BloodPressure == 0,NA,BloodPressure),
+    SkinThickness = ifelse(SkinThickness == 0,NA,SkinThickness),
+    Insulin = ifelse(Insulin == 0,NA,Insulin),
+    BMI = ifelse(BMI == 0,NA,BMI),
+    DiabetesPedigreeFunction = ifelse(DiabetesPedigreeFunction == 0,NA,DiabetesPedigreeFunction),
+    Age = ifelse(Age == 0,NA,Age),
+    Outcome = as.factor(Outcome)
+  ) %>% rename(
+    DiabetesPedigree = DiabetesPedigreeFunction
+  )
+df <- df[!(df$Glucose %>% is.na()),]
+```
+
+Esta seção apresenta uma análise descritiva dos dados coletados para o modelo de regressão. O conjunto de dados consiste em informações sobre uma variável de resposta e várias variáveis independentes, como apresentado na Tabela 1.
+
+
+| Variável | Nome                     | Descrição                                                     |
+|----------------------|-----------------|---------------------------------|
+| $Y$      | Glucose                  | Concentração de glicose em teste oral de tolerância à glicose |
+| $X_1$    | Pregnancies              | Número de vezes que a índia engravidou                        |
+| $X_2$    | BloodPressure            | Pressão arterial diastólic (mm Hg)                            |
+| $X_3$    | SkinThickness            | Espessura cutânea triciptal (mm)                              |
+| $X_4$    | Insulin                  | 2 horas de insulina no soro (mu U/ml)                         |
+| $X_5$    | BMI                      | Índice de massa corporal (ICM)                                |
+| $X_6$    | DiabetesPedigree | Diabetes função da genealogia                                 |
+| $X_7$    | Age                      | Idade (anos)                                                  |
+| $X_8$    | Outcome                  | Teste de diabetes (0=saudável, 1=diabético)                   |
+Table: Variáveis disponíveis para o modelo
+
+Inicialmente, é importante realizar uma análise de consistência dos dados, devido à possibilidade de existirem valores descritos de forma errada que podem prejudicar o desempenho do modelo. Por exemplo, valores que deveriam ser NA podem estar preenchidos com o valor 0, bem como a exclusão das observações com valores faltantes para a variável resposta, nos restando uma amostra de 763 unidades amostrais. Essa análise de consistência será realizada antes da modelagem de regressão para garantir a qualidade dos resultados. Os códigos utilizados podem ser vistos no anexo do arquivo, aqui apenas os resultados serão apresentados.
+
+É possível observar abaixo a distribuição dos dados disponíveis bem como as devidas estatísticas para as variáveis numéricas. É perceptível um valor próximo de 50% das observaçÕes, veremos na área de modelagem se a variável agrega ou não informações para o modelo.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE , results="asis"}
+# 
+# summarytools::dfSummary(df, 
+#           plain.ascii  = FALSE, 
+#           style        = "grid", 
+#           graph.magnif = 0.75, 
+#           valid.col    = FALSE,
+#           tmp.img.dir  = "/tmp")
+library(summarytools)
+st_options(
+  plain.ascii            = FALSE, 
+  subtitle.emphasis      = FALSE,
+  style                  = "rmarkdown", # For other summarytools objects (freq, descr...)
+  dfSummary.style        = "grid",
+  dfSummary.graph.magnif = .5,
+  dfSummary.valid.col    = FALSE,
+  tmp.img.dir            = "/tmp"  # Recommended on Linux/OS X; On 
+                                   # Windows, "img" is suggested 
+)
+define_keywords(title.dfSummary = "Informações a Respeito dos Dados",dimensions = "Dimensões",
+                duplicates = 'Duplicadas',data.frame ='Dados de Glucose',
+                variable= 'Variáveis',valid = 'Válidos',stats.values = 'Estatísticas/Valores',freqs.pct.valid= 'Freq. De Válidos',
+                graph= 'Gráficos',missing= 'Faltantes',distinct.value = 'Valores Distintos',distinct.values = 'Valores Distintos')
+dfSummary(df)
+```
+Podemos ver abaixo a interação, através da análise de correlação, de cada variável explicativa com a variável reposta, note porém que aqui não será considerada a variável `Outcome` por se tratar de uma variável categórica. 
+
+```{r}
+library(corrplot)
+# Calcular a matriz de correlação
+matriz_cor <- cor(df %>% select(-Outcome))
+
+# Plotar um gráfico de correlação
+corrplot(matriz_cor, method = "circle", type = "upper", tl.col = "black", tl.srt = 45)
+```
+
+# Modelagem
+
+Nesta seção, serão apresentados os resultados da modelagem de regressão realizada com base nos dados coletados. O objetivo principal é desenvolver um modelo de regressão que possa prever o valor da variável de resposta com base em diversas variáveis independentes. Serão exploradas as possíveis interações entre as variáveis e, caso necessário, será realizada uma seleção de variáveis com base na análise de diagnóstico do modelo.
+
+## Modelo 1
+
+Inicialmente, foi desenvolvido um modelo de regressão incluindo todas as variáveis disponíveis, bem como as interações relevantes entre elas. Neste modelo inicial, buscamos investigar as relações entre as variáveis independentes e a variável de resposta. Serão apresentados os coeficientes estimados, seus respectivos intervalos de confiança e a significância estatística das relações. O modelo inicial segue como:
+
+$$
+Y = \beta_0 + \beta_1 X_1 +\beta_2 X_2 +\beta_3 X_3 +\beta_4 X_4 +\beta_5 X_5 +\beta_6 X_6 +\beta_7 X_7 +\beta_8 X_8+\epsilon_i
+$$
+Onde cada $\beta_i$ corresponde a influência da covariável $X_i$ na variável resposta
